@@ -6,8 +6,8 @@ from gcn_model import GCNClassifier
 import random
 import torch
 import tqdm
-import sys
 import pandas as pd
+
 
 SEED = 1234
 random.seed(SEED)
@@ -15,57 +15,133 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 def main():
-    features_extractors= ['resnet'] 
-    DATASET_TO_USE= 'flowers'
-    GCN_TYPE_TO_USE= 'sgc_grande' # appnp_grande ou gcn_degree, sgc_grande ou sgc_degree
-    NEURONS_LIST= [256]
+    NAME_EXPERIMENT = "name_experiment"
 
-    for FEATURES_EXTRACTOR in tqdm.tqdm(features_extractors, desc="Extratores de Features"):
-        print(f'--- Iniciando Experimento para {DATASET_TO_USE.upper()} com features {FEATURES_EXTRACTOR.upper()} ---')
+    features_extractors = ["resnet", "senet", "vit"] # resnet, senet, vit, dpnet, swimtf
+    dATASET_TO_USE = ["cub200"]                      # flowers, cub200, dogs, pets, corel5k
+    GCN_TYPE_TO_USE = "polynormer"                   # sgc_grande, sgc_degree, appnp_grande, appnp_degree, polynormer, gatv2, gin
+    GRAPH_TYPE_TO_USE = "rec"                        # knn or rec
+    NEURONS_LIST = [256]                             # Is accept by APPNP, Polynormer. For SGC, GATv2 and GIN, it is fixed in
+                                                     # gcn_model.py
+    K_FOLDS_LIST = [10]                              # Number of folds (10 is recommended)
+    K_NEIGHBORS_GRAPH = [40]                         # Number of neighbors for graph construction (max number of neighbors).
 
-        features, labels= load_data(DATASET_TO_USE, FEATURES_EXTRACTOR)
+    # APPNP parameters
+    APPNP_K_LIST = [0]                               # Number of propagation steps for APPNP (only for appnp_grande and appnp_degree).
+    APPNP_ALPHA_LIST = [0]                           # Teleport probability for APPNP (only for appnp_grande and appnp_degree).
+    
+    # GRaNDe parameters 
+    SIGMA = 0.2                                        # Sigma for GRaNDe (only for grande versions) 0.2 is recommended
 
-        ranked_lists= run_ball_tree(features, k=config.L)
- 
-        folds= create_folds(features, labels, n_folds= config.N_folds)
+    rows = []
+    for DATASET_TO_USE in tqdm.tqdm(dATASET_TO_USE, desc="Datasets"):
+        for FEATURES_EXTRACTOR in tqdm.tqdm(features_extractors, desc="Extratores de Features"):
+            print(f"--- Iniciando Experimento para {DATASET_TO_USE.upper()} com features {FEATURES_EXTRACTOR.upper()} ---")
 
-        for neurons in tqdm.tqdm(NEURONS_LIST, desc="Número de Neurônios", leave=False):
-            print(f"--- Treinando GCN com {neurons} neurônios na camada oculta ---")
-            clf= GCNClassifier(GCN_TYPE_TO_USE, ranked_lists, len(labels), number_neighbors=config.k_graph, numbers_of_neurons=neurons)
-            fold_acuracies= []
+            features, labels = load_data(DATASET_TO_USE, FEATURES_EXTRACTOR)
+            ranked_lists = run_ball_tree(features, k=config.L)
 
-            """ for fold_idx, (test_idx, train_idx) in enumerate(folds):
-                repetition_accuracies= []
-                for _ in range(config.N_repetitions):
-                    clf.prepare(test_index=test_idx, train_index=train_idx, features=features, labels=labels, matrix=correlation_matrix, limiar=threshold_to_use, correlation='default')
-                    _, predictions= clf.train_and_predict()
-                    test_labels= [labels[i] for i in test_idx]
-                    acc= sum(1 for i, p in enumerate(predictions) if test_labels[i] == p) / len(predictions)
-                    repetition_accuracies.append(acc)
+            for K_FOLDS in tqdm.tqdm(K_FOLDS_LIST, desc="Número de Folds", leave=False):
+                folds = create_folds(features, labels, n_folds=K_FOLDS)
 
-                mean_acc_for_fold= np.mean(repetition_accuracies)
-                fold_acuracies.append(mean_acc_for_fold) """
-            
-            list_mean_acuracies_per_repetition= []
-            for _ in tqdm.trange(config.N_repetitions, desc="Repetições"):
-                list_accuracies_per_fold= []
-                for fold_idx, (test_idx, train_idx) in tqdm.tqdm(enumerate(folds), total=len(folds), desc="Folds", leave=False):
-                    clf.prepare(test_index=test_idx, train_index=train_idx, features=features, labels=labels)
-                    _, predictions= clf.train_and_predict()
-                    test_labels= [labels[i] for i in test_idx]
-                    acc= sum(1 for i, p in enumerate(predictions) if test_labels[i] == p) / len(predictions)
-                    list_accuracies_per_fold.append(acc)
-                mean_acc_for_repetition= np.mean(list_accuracies_per_fold)
-                list_mean_acuracies_per_repetition.append(mean_acc_for_repetition)
-            
-            mean_accuracy= np.mean(list_mean_acuracies_per_repetition)
-            std_accuracy= np.std(list_mean_acuracies_per_repetition, ddof=1)
+                for APPNP_K in tqdm.tqdm(APPNP_K_LIST, desc="K para APPNP", leave=False):
+                    for APPNP_ALPHA in tqdm.tqdm(APPNP_ALPHA_LIST, desc="Alpha para APPNP", leave=False):
+                    
+                        for neurons in tqdm.tqdm(NEURONS_LIST, desc="Número de Neurônios", leave=False):
 
-            
-            print("\n--- Resultados Finais ---")
-            print(f"Dataset: {DATASET_TO_USE}, Features: {FEATURES_EXTRACTOR}")
-            print(f"Acurácia Final: {mean_accuracy * 100:.2f}% ± {std_accuracy * 100:.2f}%")
+                            # INÍCIO DA MODIFICAÇÃO: Novo loop for para o k_neighborhood
+                            for k_neighborhood in tqdm.tqdm(K_NEIGHBORS_GRAPH, desc="K Vizinhos", leave=False):
+                            
+                                mean_acc_per_repetition = []
+                                all_accuracies = []
 
+                                for _ in tqdm.trange(config.N_repetitions, desc="Repetições", leave=False):
+                                    acc_per_fold = []
+
+                                    for fold_idx, (test_idx, train_idx) in tqdm.tqdm(
+                                        enumerate(folds), total=len(folds), desc="Folds", leave=False
+                                    ):
+                                        if DATASET_TO_USE == "cub200":
+                                            learning_rate = 0.01
+                                        else:                                            
+                                            learning_rate = config.learning_rate
+
+                                        print(learning_rate)
+                                            
+                                        # number_neighbors agora recebe k_neighborhood 
+                                        clf_final = GCNClassifier(gcn_type=GCN_TYPE_TO_USE,
+                                                                  graph_type=GRAPH_TYPE_TO_USE,
+                                                                  rks=ranked_lists,
+                                                                  pN=len(labels),
+                                                                  number_neighbors=k_neighborhood,
+                                                                  numbers_of_neurons=neurons,
+                                                                  learning_rate=learning_rate,
+                                                                  numeroNeuronios=neurons,
+                                                                  num_epochs=config.epochs, 
+                                                                  K=APPNP_K,
+                                                                  alpha=APPNP_ALPHA,
+                                                                  sigma=SIGMA)
+
+                                        clf_final.prepare(
+                                            test_index=test_idx,
+                                            train_index=train_idx, 
+                                            features=features,
+                                            labels=labels
+                                        )
+
+                                        _, predictions = clf_final.train_and_predict()
+                                        test_labels = [labels[i] for i in test_idx]
+                                        acc = sum(1 for i, p in enumerate(predictions) if test_labels[i] == p) / len(predictions)
+                                        acc_per_fold.append(acc)
+                                        all_accuracies.append(acc)
+
+
+                                    # Salvando a média das repetições
+                                    mean_acc_per_repetition.append(np.mean(acc_per_fold))
+                                    print(f"Repetição concluída: Média de Acurácia = {mean_acc_per_repetition[-1]:.4f}")
+
+                                mean_accuracy = np.mean(mean_acc_per_repetition)
+                                std_accuracy_per_repetition = np.std(mean_acc_per_repetition, ddof=1)
+                                std_accuracy_per_fold = np.std(all_accuracies, ddof=1)
+
+                                if GCN_TYPE_TO_USE in ["appnp_grande", "appnp_degree"]:
+                                    rows.append({
+                                        "Dataset": DATASET_TO_USE,
+                                        "Features": FEATURES_EXTRACTOR,
+                                        "GCN Type": GCN_TYPE_TO_USE,
+                                        "Neurons": neurons,
+                                        "K_Folds": K_FOLDS,
+                                        "APPNP_K": APPNP_K,
+                                        "APPNP_ALPHA": APPNP_ALPHA,
+                                        "SIGMA": SIGMA,
+                                        "K_Neighborhood": k_neighborhood, # ALTERAÇÃO: Salvando o k_neighborhood atual
+                                        "Mean Accuracy": mean_accuracy,
+                                        "Std Accuracy Per Repetition": std_accuracy_per_repetition,
+                                        "Std Accuracy Per Fold": std_accuracy_per_fold
+                                    })
+                                else:
+                                    rows.append({
+                                        "Dataset": DATASET_TO_USE,
+                                        "Features": FEATURES_EXTRACTOR,
+                                        "GCN Type": GCN_TYPE_TO_USE,
+                                        "Neurons": neurons,
+                                        "K_Folds": K_FOLDS,
+                                        "APPNP_K": APPNP_K,
+                                        "APPNP_ALPHA": APPNP_ALPHA,
+                                        "SIGMA": SIGMA,
+                                        "K_Neighborhood": k_neighborhood, # ALTERAÇÃO: Salvando o k_neighborhood atual
+                                        "Mean Accuracy": mean_accuracy,
+                                        "Std Accuracy Per Repetition": std_accuracy_per_repetition,
+                                        "Std Accuracy Per Fold": std_accuracy_per_fold
+                                    })
+
+                                # ALTERAÇÃO: Log deixando claro qual era o valor de k_neighborhood daquela iteração
+                                print(f"\n -> Log de Iteração: K_Neighborhood={k_neighborhood} | Acurácia Média={mean_accuracy:.4f} | Desvio={std_accuracy_per_fold:.4f}")
+                            # FIM DA MODIFICAÇÃO
+
+    df = pd.DataFrame(rows)
+    df.to_csv(f"experiment_results_{GCN_TYPE_TO_USE}_{NAME_EXPERIMENT}.csv", index=False)
+    print(df)
     print("\n--- Experimento Concluído ---\n")
 
 if __name__ == '__main__':
