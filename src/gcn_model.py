@@ -2,9 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.nn import SGConv
-from torch_geometric.nn import AGNNConv
 from torch_geometric.nn import APPNP
-from torch_geometric.nn import ARMAConv
 from torch.nn import Linear
 import torch_geometric.transforms as T
 import random
@@ -50,93 +48,6 @@ from grande_models import GrandeSGConv, GrandeAPPNP
 from polynormer_model import Polynormer
 from torch_geometric.nn.conv.gatv2_conv import GATv2Conv 
 
-from torch_geometric.nn import GINConv
-
-class GIN(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_channels=64, num_layers=5, dropout=0.5):
-        super(GIN, self).__init__()
-        self.num_layers = num_layers
-        self.dropout = dropout
-
-        self.convs = torch.nn.ModuleList()
-        self.batch_norms = torch.nn.ModuleList()
-
-        for i in range(num_layers):
-            in_dim = in_channels if i == 0 else hidden_channels
-            
-            mlp = Sequential(
-                Linear(in_dim, hidden_channels),
-                ReLU(),
-                Linear(hidden_channels, hidden_channels)
-            )
-            
-            self.convs.append(GINConv(mlp, train_eps=False))
-            self.batch_norms.append(BatchNorm1d(hidden_channels))
-
-        
-        self.lin = Linear(hidden_channels * num_layers, out_channels)
-
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        
-        hidden_states = []
-        
-        for i in range(self.num_layers):
-            x = self.convs[i](x, edge_index)
-            x = self.batch_norms[i](x)
-            x = F.relu(x)
-            
-            hidden_states.append(x)
-            
-        out = torch.cat(hidden_states, dim=1)
-        
-        out = F.dropout(out, p=self.dropout, training=self.training)
-        out = self.lin(out)
-        
-        return F.log_softmax(out, dim=1)
-
-class GATv2(torch.nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(GATv2, self).__init__()
-        
-        # Camada 1: 8 cabeças, 8 features cada (concatenação automática)
-        self.conv1 = GATv2Conv(in_channels, 8, heads=8, dropout=0.6)
-        self.conv2 = GATv2Conv(8 * 8, out_channels, dropout=0.6)
-
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x = F.dropout(x, p=0.6, training=self.training)
-        x = F.elu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=0.6, training=self.training)
-        x = self.conv2(x, edge_index)
-        return F.log_softmax(x, dim=1)
-
-class PolynormerNet(torch.nn.Module):
-    def __init__(self, num_features, num_classes, neurons=512, local_layers=5, global_layers=2, heads=8, dropout=0.5):
-        super(PolynormerNet, self).__init__()
-        
-        self.core_model = Polynormer(
-            in_channels=num_features,
-            hidden_channels=neurons,
-            out_channels=num_classes,
-            local_layers=local_layers,
-            global_layers=global_layers,
-            heads=heads,
-            dropout=dropout
-        )
-
-    def forward(self, data):
-        # Extração do seu grafo topológico (KNN do BallTree) e features
-        x, edge_index = data.x, data.edge_index
-        
-        # Garantir que as features sejam float32 para o processamento linear
-        x = x.float()
-        
-        # O modelo processa a Atenção Local (edge_index) e depois a Global (Kernel Trick)
-        logits = self.core_model(x, edge_index)
-        
-        # Devolvemos Log-Softmax para o seu loop de treino (F.nll_loss)
-        return F.log_softmax(logits, dim=1)
 
 class GrandeSGC(torch.nn.Module):
     def __init__(self, num_features, num_classes, sigma=0.2):
@@ -324,19 +235,6 @@ class GCNClassifier:
             return GrandeAPPNPNet(self.pNFeatures, self.numberOfClasses, neurons=self.pNNeurons, sigma=self.sigma).to(self.device)
         elif gt == "appnp_degree":
             return APPNPNet(self.pNFeatures, self.numberOfClasses, neurons=self.pNNeurons).to(self.device)
-        elif gt == "polynormer":
-            return PolynormerNet(
-                num_features=self.pNFeatures, 
-                num_classes=self.numberOfClasses, 
-                neurons=self.pNNeurons, 
-                local_layers=3, 
-                global_layers=2,
-                heads=1
-            ).to(self.device)
-        elif gt == "gatv2":
-            return GATv2(self.pNFeatures, self.numberOfClasses).to(self.device)
-        elif gt == "gin":
-            return GIN(self.pNFeatures, self.numberOfClasses, hidden_channels=self.pNNeurons, num_layers=5, dropout=0.5).to(self.device)
         else:
             raise ValueError("Invalid gcn_type. Choose from 'gcn_grande', 'gcn_degree', 'sgc_grande', 'sgc_degree', 'appnp_grande', 'appnp_degree'.")
 
