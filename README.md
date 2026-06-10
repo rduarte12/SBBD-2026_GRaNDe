@@ -90,5 +90,4 @@ Experiments were conducted on the **Flowers-17** dataset, using features extract
 
 ## 🎓 Author and Acknowledgements
 
-* **Author:** R. M. Duarte
-* **Advisor:** L. P. Valem
+* **Authors:** R. M. Duarte, J.R Ponciano, L. P. Valem
