@@ -19,16 +19,16 @@ def main():
 
     features_extractors = ["resnet", "senet", "vit"] # resnet, senet, vit, dpnet, swimtf
     dATASET_TO_USE = ["cub200"]                      # flowers, cub200, dogs, pets, corel5k
-    GCN_TYPE_TO_USE = "polynormer"                   # sgc_grande, sgc_degree, appnp_grande, appnp_degree, polynormer, gatv2, gin
+    GCN_TYPE_TO_USE = "polynormer"                   # sgc_grande, sgc_degree, appnp_grande, appnp_degree
     GRAPH_TYPE_TO_USE = "rec"                        # knn or rec
-    NEURONS_LIST = [256]                             # Is accept by APPNP, Polynormer. For SGC, GATv2 and GIN, it is fixed in
+    NEURONS_LIST = [256]                             # Is accept by APPNP. For SGC, it is fixed in
                                                      # gcn_model.py
     K_FOLDS_LIST = [10]                              # Number of folds (10 is recommended)
     K_NEIGHBORS_GRAPH = [40]                         # Number of neighbors for graph construction (max number of neighbors).
 
     # APPNP parameters
-    APPNP_K_LIST = [0]                               # Number of propagation steps for APPNP (only for appnp_grande and appnp_degree).
-    APPNP_ALPHA_LIST = [0]                           # Teleport probability for APPNP (only for appnp_grande and appnp_degree).
+    APPNP_K_LIST = [10]                               # Number of propagation steps for APPNP (only for appnp_grande and appnp_degree).
+    APPNP_ALPHA_LIST = [0.1]                           # Teleport probability for APPNP (only for appnp_grande and appnp_degree).
     
     # GRaNDe parameters 
     SIGMA = 0.2                                        # Sigma for GRaNDe (only for grande versions) 0.2 is recommended
@@ -49,7 +49,6 @@ def main():
                     
                         for neurons in tqdm.tqdm(NEURONS_LIST, desc="Número de Neurônios", leave=False):
 
-                            # INÍCIO DA MODIFICAÇÃO: Novo loop for para o k_neighborhood
                             for k_neighborhood in tqdm.tqdm(K_NEIGHBORS_GRAPH, desc="K Vizinhos", leave=False):
                             
                                 mean_acc_per_repetition = []
@@ -135,14 +134,14 @@ def main():
                                         "Std Accuracy Per Fold": std_accuracy_per_fold
                                     })
 
-                                # ALTERAÇÃO: Log deixando claro qual era o valor de k_neighborhood daquela iteração
-                                print(f"\n -> Log de Iteração: K_Neighborhood={k_neighborhood} | Acurácia Média={mean_accuracy:.4f} | Desvio={std_accuracy_per_fold:.4f}")
-                            # FIM DA MODIFICAÇÃO
+                                
+                                print(f"\n -> Log: K_Neighborhood={k_neighborhood} | Mean Accuracy={mean_accuracy:.4f} | Std={std_accuracy_per_fold:.4f}")
+                            
 
     df = pd.DataFrame(rows)
     df.to_csv(f"experiment_results_{GCN_TYPE_TO_USE}_{NAME_EXPERIMENT}.csv", index=False)
     print(df)
-    print("\n--- Experimento Concluído ---\n")
+    print("\n--- Finished ---\n")
 
 if __name__ == '__main__':
     main()
