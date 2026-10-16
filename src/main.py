@@ -17,9 +17,9 @@ torch.manual_seed(SEED)
 def main():
     NAME_EXPERIMENT = "name_experiment"
 
-    features_extractors = ["resnet", "senet", "vit"] # resnet, senet, vit, dpnet, swimtf
-    dATASET_TO_USE = ["cub200"]                      # flowers, cub200, dogs, pets, corel5k
-    GCN_TYPE_TO_USE = "polynormer"                   # sgc_grande, sgc_degree, appnp_grande, appnp_degree
+    features_extractors = ["resnet"]                 # resnet, senet, vit, dpnet, swimtf
+    dATASET_TO_USE = ["flowers"]                     # flowers, cub200, dogs, pets, corel5k
+    GCN_TYPE_TO_USE = "sgc_grande"                   # sgc_grande, sgc_degree, appnp_grande, appnp_degree
     GRAPH_TYPE_TO_USE = "rec"                        # knn or rec
     NEURONS_LIST = [256]                             # Is accept by APPNP. For SGC, it is fixed in
                                                      # gcn_model.py
@@ -27,8 +27,8 @@ def main():
     K_NEIGHBORS_GRAPH = [40]                         # Number of neighbors for graph construction (max number of neighbors).
 
     # APPNP parameters
-    APPNP_K_LIST = [10]                               # Number of propagation steps for APPNP (only for appnp_grande and appnp_degree).
-    APPNP_ALPHA_LIST = [0.1]                           # Teleport probability for APPNP (only for appnp_grande and appnp_degree).
+    APPNP_K_LIST = [10]                              # Number of propagation steps for APPNP (only for appnp_grande and appnp_degree).
+    APPNP_ALPHA_LIST = [0.1]                         # Teleport probability for APPNP (only for appnp_grande and appnp_degree).
     
     # GRaNDe parameters 
     SIGMA = 0.2                                        # Sigma for GRaNDe (only for grande versions) 0.2 is recommended
@@ -77,8 +77,6 @@ def main():
                                                                   learning_rate=learning_rate,
                                                                   numeroNeuronios=neurons,
                                                                   num_epochs=config.epochs, 
-                                                                  K=APPNP_K,
-                                                                  alpha=APPNP_ALPHA,
                                                                   sigma=SIGMA)
 
                                         clf_final.prepare(
