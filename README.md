@@ -76,7 +76,7 @@ def main():
 
 After setting the desired parameters, run the script from the terminal (in the project's root folder):
 ```bash
-python main.py
+python ./src/main.py
 ```
 
 ## 📊 Results
