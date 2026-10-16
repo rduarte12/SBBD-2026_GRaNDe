@@ -45,7 +45,6 @@ from torch_geometric.utils.num_nodes import maybe_num_nodes
 from torch_geometric.utils.sparse import set_sparse_value
 from torch_geometric.typing import Adj, OptPairTensor, OptTensor, SparseTensor
 from grande_models import GrandeSGConv, GrandeAPPNP
-from polynormer_model import Polynormer
 from torch_geometric.nn.conv.gatv2_conv import GATv2Conv 
 
 
